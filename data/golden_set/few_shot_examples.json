@@ -1,0 +1,50 @@
+[
+  {
+    "source_text": "契約性質\n專利交互授權\n契約對象\nInternational Business Machines Corporation\n契約起迄日期\n98.06.25～118.06.30\n主要內容\n半導體製程、半導體裝置與半導體設計之專利交互授權\n限制條款\n無",
+    "expected_output": {
+      "party_b_code": null,
+      "party_b_full_name": "International Business Machines Corporation",
+      "party_b_short_name": "IBM",
+      "party_b_country": "美國",
+      "party_b_org_type": "公司",
+      "party_b_is_tw_listed": 0,
+      "contract_content": "半導體製程、半導體裝置與半導體設計之專利交互授權",
+      "contract_note": null,
+      "contract_type": "授權",
+      "is_rd_cooperation": 1,
+      "direction_code": 4,
+      "start_year": 2009,
+      "end_year": 2029,
+      "has_termination_clause": 0,
+      "termination_clause": null,
+      "has_confidentiality_clause": 0,
+      "restriction_clause": "無",
+      "confidence": "high",
+      "confidence_note": null
+    }
+  },
+  {
+    "source_text": "契約性質\n技術授權\n契約對象\n和艦芯片製造（蘇州）（股）公司\n契約起迄日期\n102.07.11～117.07.10\n主要內容\n本公司將0.13微米製程技術及其相關技術資料授權和艦公司\n限制條款\n本公司依據經濟部投審會核准範圍簽約與執行",
+    "expected_output": {
+      "party_b_code": null,
+      "party_b_full_name": "和艦芯片製造（蘇州）（股）公司",
+      "party_b_short_name": "和艦（蘇州）",
+      "party_b_country": "中國",
+      "party_b_org_type": "公司",
+      "party_b_is_tw_listed": 0,
+      "contract_content": "本公司將0.13微米製程技術及其相關技術資料授權和艦公司",
+      "contract_note": null,
+      "contract_type": "授權",
+      "is_rd_cooperation": 1,
+      "direction_code": 1,
+      "start_year": 2013,
+      "end_year": 2028,
+      "has_termination_clause": 0,
+      "termination_clause": null,
+      "has_confidentiality_clause": 1,
+      "restriction_clause": "本公司依據經濟部投審會核准範圍簽約與執行",
+      "confidence": "high",
+      "confidence_note": null
+    }
+  }
+]

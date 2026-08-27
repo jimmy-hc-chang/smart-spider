@@ -1,0 +1,7 @@
+[
+  {
+    "source_text": "契約性質\n租賃契約\n當事人\n科學工業園區管理局\n契約起(迄)日期\n112/01/01~131/12/31\n主要內容\n廠房租賃\n限制條款\n無",
+    "expected_output": null,
+    "note_for_humans": "租賃契約 —— 正確行為是完全不產生這筆記錄,不是產生一筆 is_rd_cooperation=0 的記錄。放在這裡是给負責維護 prompt 的人看的負面範例,不會被 llm_extract.py 塞進實際 few-shot block。"
+  }
+]
