@@ -16,7 +16,7 @@
 
 - **不需要**一直開著 Claude 或任何 AI 對話視窗。這裡的「LLM」是指程式
   碼裡呼叫 Google Gemini API(`src/extract/llm_extract.py`),用的是
-  實驗室自己申請的 API 金鑰,跟任何聊天介面沒有關係 —— 概念上就跟呼叫
+  自己申請的 API 金鑰,跟任何聊天介面沒有關係 —— 概念上就跟呼叫
   Google 翻譯 API 或任何雲端服務一樣,是程式的一個依賴套件,不是要有人
   在旁邊跟 AI 對話。
 - 需要人工的地方只剩最後一步「複核」,而且介面會標出 AI 沒把握的欄位,
@@ -32,9 +32,9 @@ cp .env.example .env
 ```
 
 打開 `.env`,填入:
-1. `GEMINI_API_KEY` —— 去 https://aistudio.google.com/apikey 用實驗室的
-   Google 帳號申請,有免費額度。**這組金鑰是實驗室的資產,不是個人的**,
-   離職交接時要一併交接,不要留在只有一個人知道的地方。
+1. `GEMINI_API_KEY` —— 去 https://aistudio.google.com/apikey 用自己的
+   Google 帳號申請,有免費額度。**這組金鑰是自己的資產**,
+   交接時要注意,不要留在只有一個人知道的地方。
 2. `DATABASE_URL` —— 如果還不確定實驗室資料庫是哪一種,先留空,系統
    會自動用本機的 SQLite 檔案(`data/contracts.db`),不影響前面抓取跟
    抽取的流程,之後確定資料庫種類再回來填這一行就好(見下方「入庫」)。
