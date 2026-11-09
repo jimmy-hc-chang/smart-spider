@@ -96,9 +96,7 @@ Copy-Item .env.example .env
 操作指令會不一樣。
 
 打開 `.env`,填入:
-1. `GEMINI_API_KEY` —— 去 https://aistudio.google.com/apikey 用實驗室的
-   Google 帳號申請,有免費額度。**這組金鑰是實驗室的資產,不是個人的**,
-   離職交接時要一併交接,不要留在只有一個人知道的地方。
+1. `GEMINI_API_KEY` —— 去 https://aistudio.google.com/apikey 用免費額度。
 2. `DATABASE_URL` —— 如果還不確定實驗室資料庫是哪一種,先留空,系統
    會自動用本機的 SQLite 檔案(`data/contracts.db`),不影響前面抓取跟
    抽取的流程,之後確定資料庫種類再回來填這一行就好(見下方「入庫」)。
