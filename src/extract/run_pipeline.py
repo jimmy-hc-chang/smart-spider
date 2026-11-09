@@ -24,9 +24,15 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
+import unicodedata
+
+import fitz  # pymupdf
+
 from config.schema import COLUMNS, REVIEW_ONLY_COLUMNS  # noqa: E402
 from src.extract.locate_contracts import locate  # noqa: E402
 from src.extract.llm_extract import extract  # noqa: E402
+
+from src.extract.analyze import guess_company_name  # noqa: E402,F401
 
 FIELD_MAP_EN_TO_ZH = {
     "party_b_code": "乙方代碼", "party_b_full_name": "乙方全稱", "party_b_short_name": "乙方簡稱",
@@ -39,8 +45,20 @@ FIELD_MAP_EN_TO_ZH = {
 }
 
 
-def process_one_pdf(pdf_path: Path, stock_code: str, company_name: str, company_short: str,
+def process_one_pdf(pdf_path: Path, stock_code: str, company_name: str | None, company_short: str | None,
                      report_year: int) -> list[dict]:
+    if not company_name:
+        company_name = guess_company_name(pdf_path)
+        if company_name:
+            print(f"  [提示] {pdf_path.name}:companies.csv 沒填公司全名,從封面頁猜到「{company_name}」,"
+                  f"建議複核時順便確認一下")
+        else:
+            company_name = f"(未知,股票代碼{stock_code})"
+            print(f"  [警告] {pdf_path.name}:companies.csv 沒填公司全名,封面頁也猜不到,"
+                  f"請人工補上甲方全稱")
+    if not company_short:
+        company_short = company_name
+
     section = locate(str(pdf_path))
     if section is None:
         print(f"  [警告] {pdf_path.name}:找不到「重要契約」段落,請人工確認是否為特殊排版(可能需要 OCR)")
@@ -77,9 +95,18 @@ def process_one_pdf(pdf_path: Path, stock_code: str, company_name: str, company_
     return rows
 
 
-def load_companies(csv_path: Path) -> dict[str, tuple[str, str]]:
-    with open(csv_path, encoding="utf-8") as f:
-        return {r["stock_code"]: (r["full_name"], r["short_name"]) for r in csv.DictReader(f)}
+def load_companies(csv_path: Path) -> dict[str, tuple[str | None, str | None]]:
+    # utf-8-sig:見 scraper/download_annual_reports.py 裡同名函式的註解
+    # full_name / short_name 是選填欄位:只有 stock_code 這一欄是必要的,
+    # 沒填名字的公司會在 process_one_pdf() 用 guess_company_name() 從 PDF 封面頁補。
+    with open(csv_path, encoding="utf-8-sig") as f:
+        result = {}
+        for r in csv.DictReader(f):
+            code = r["stock_code"].strip()
+            full = (r.get("full_name") or "").strip() or None
+            short = (r.get("short_name") or "").strip() or None
+            result[code] = (full, short)
+        return result
 
 
 FILENAME_RE = re.compile(r"^(\d+)_(\d{4})\.pdf$")

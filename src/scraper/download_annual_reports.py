@@ -111,9 +111,17 @@ def step2_find_pdf_link(session: requests.Session, page_url: str, stock_code: st
     return None
 
 
-def download_one(session: requests.Session, stock_code: str, western_year: int, debug: bool = False) -> Path | None:
+def source_link(stock_code: str, western_year: int) -> str:
+    """該公司該年度在公開資訊觀測站的文件清單網址。網址是固定的,
+    存在資料裡,檢查的人點一下就能回去看原始年報。"""
+    return f"{BASE}?step=1&colorchg=1&co_id={stock_code}&year={roc_year(western_year)}&mtype=F&"
+
+
+def download_one(session: requests.Session, stock_code: str, western_year: int, debug: bool = False,
+                 out_dir: Path | None = None) -> Path | None:
     roc = roc_year(western_year)
-    out_path = RAW_DIR / f"{stock_code}_{western_year}.pdf"
+    out_dir = Path(out_dir) if out_dir else RAW_DIR
+    out_path = out_dir / f"{stock_code}_{western_year}.pdf"
     if out_path.exists():
         print(f"[skip] {out_path.name} 已存在")
         return out_path
@@ -135,14 +143,16 @@ def download_one(session: requests.Session, stock_code: str, western_year: int, 
               f"{resp.headers.get('Content-Type')}),建議加 --debug 檢查")
         return None
 
-    RAW_DIR.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     out_path.write_bytes(resp.content)
     print(f"[ok] 存成 {out_path}")
     return out_path
 
 
 def load_companies(csv_path: Path) -> list[str]:
-    with open(csv_path, encoding="utf-8") as f:
+    # utf-8-sig:companies.csv 存的時候有加 UTF-8 BOM(方便 Excel 直接開不會亂碼),
+    # 讀取時要用 utf-8-sig 才能正確跳過 BOM,不然第一個欄位名稱會變成 "\ufeffstock_code"
+    with open(csv_path, encoding="utf-8-sig") as f:
         return [row["stock_code"] for row in csv.DictReader(f)]
 
 
@@ -153,7 +163,7 @@ def main():
     ap.add_argument("--start-year", type=int, default=1998,
                      help="歷史回補起始西元年(預設 1998,公開資訊觀測站最早的電子化年報年份)")
     ap.add_argument("--end-year", type=int, default=None,
-                     help="歷史回補結束西元年(預設今年)。跟 --year 擇一使用,同時給的話 --year 優先")
+                     help="歷史回補結束西元年(預設去年,因為年報隔年才公告)。跟 --year 擇一使用,同時給的話 --year 優先")
     ap.add_argument("--companies-csv", default=str(REPO_ROOT / "config" / "companies.csv"))
     ap.add_argument("--sleep", type=float, default=1.5, help="每次下載間隔秒數,避免對政府網站造成負擔")
     ap.add_argument("--debug", action="store_true", help="把中間過程的 HTML 存下來方便除錯")
@@ -164,7 +174,8 @@ def main():
     if args.year:
         years = [args.year]
     else:
-        end_year = args.end_year or datetime.date.today().year
+        # 年報是隔年才公告(例如 2025 年度的年報 2026 年 5-6 月才出),所以預設抓到「去年」
+        end_year = args.end_year or datetime.date.today().year - 1
         years = list(range(args.start_year, end_year + 1))
 
     total = len(stocks) * len(years)

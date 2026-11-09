@@ -76,3 +76,36 @@ class ExtractionResult(BaseModel):
     """一頁/一段「重要契約」文字,經 LLM 判讀後的完整輸出。"""
     has_any_contract: bool = Field(..., description="這段重要契約原文是否明確聲明「並無簽訂重要契約」等,若是則為 false")
     contracts: list[ContractRecord] = Field(default_factory=list)
+
+
+# ===================== 雲端版(Google 試算表)用的分頁與欄位 =====================
+# 試算表裡固定會有這五個分頁,setup_sheet.py 會自動建立。
+TAB_MASTER = "契約資料"      # 正式資料庫(歷史資料 + 人工檢查通過的新資料)
+TAB_PENDING = "待檢查"       # AI 抽取完、還沒有人檢查的資料
+TAB_COMPANIES = "公司清單"   # 要追蹤的公司,一行一個股票代碼
+TAB_LOG = "處理紀錄"         # 每一份年報處理過沒有、結果如何
+TAB_SETTINGS = "設定"        # 起始年份、每次處理份數等
+
+MASTER_EXTRA_COLUMNS = ["資料來源", "檢查人", "檢查日期", "來源連結", "來源頁碼"]
+MASTER_COLUMNS = COLUMNS + MASTER_EXTRA_COLUMNS
+
+PENDING_COLUMNS = ["紀錄ID"] + COLUMNS + ["來源連結", "來源頁碼", "AI信心", "AI信心說明", "建立時間"]
+
+COMPANY_COLUMNS = ["股票代碼", "備註"]
+
+LOG_COLUMNS = ["股票代碼", "年度", "狀態", "筆數", "說明", "處理方式", "時間"]
+
+# 處理紀錄裡的「狀態」。DONE 代表這份年報不用再處理。
+STATUS_OK = "成功"
+STATUS_NO_CONTRACT = "無重要契約"
+STATUS_NO_RD = "無研發合作契約"
+STATUS_NOT_FOUND_SECTION = "找不到重要契約章節(可能是掃描檔,需人工)"
+STATUS_NO_REPORT = "抓不到年報"
+STATUS_ERROR = "錯誤"
+DONE_STATUSES = {STATUS_OK, STATUS_NO_CONTRACT, STATUS_NO_RD, STATUS_NOT_FOUND_SECTION}
+
+DEFAULT_SETTINGS = {
+    "起始年份": "2024",          # 歷史資料已涵蓋 1998-2023;想重新回補可改成 1998
+    "每次最多處理份數": "20",    # Gemini 免費額度每天有上限,設太大會中途用完(用完會自動明天繼續)
+    "Gemini模型": "gemini-flash-latest",
+}

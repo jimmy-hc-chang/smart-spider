@@ -1,4 +1,41 @@
-# 重要契約研發合作抽取管線
+# 重要契約研發合作資料庫(smart-spider)
+
+**一般使用者:不用看這份,請直接打開實驗室網站,說明在網站的「使用說明」分頁(也就是 `docs/使用手冊.md`)。**
+**第一次建置的管理者:請看 `docs/管理者設定手冊.md`。**
+
+## 雲端版架構(2026-11 起)
+
+不再需要 HeidiSQL、不再需要一直開著的實驗室主機:
+
+```
+每天凌晨自動 / 網頁按「一鍵更新」
+        │
+        ▼
+GitHub Actions(雲端電腦)  src/cloud/run_update.py
+  下載年報 → 找重要契約 → Gemini 判讀 → 寫進 Google 試算表「待檢查」
+        │
+        ▼
+Google 試算表(取代 SQL 資料庫)  契約資料 / 待檢查 / 公司清單 / 處理紀錄 / 設定
+        ▲
+        │
+Streamlit 網頁  app.py   一鍵更新、檢查 AI 結果、手動上傳、貼 TEJ 代碼、下載 Excel
+```
+
+| 檔案 | 用途 |
+|---|---|
+| `app.py` | 給所有人用的網頁 |
+| `src/cloud/run_update.py` | 一鍵更新實際執行的工作 |
+| `.github/workflows/update.yml` | 每日排程 + 一鍵觸發設定 |
+| `src/storage/store.py` | Google 試算表(或本機試用 Excel)存取 |
+| `src/extract/analyze.py` | 分析單一份年報的完整步驟 |
+| `scripts/setup_sheet.py` | 第一次建置:建立分頁、搬入舊資料 |
+
+本機試用(不接 Google 試算表,資料存在 `data/local_store.xlsx`):`streamlit run app.py`
+
+---
+
+以下是原本「命令列版本」的說明,雲端版底層用的是同一套程式。
+
 
 用 LLM 自動從公開發行公司年報的「重要契約」段落,抽取研發合作/技術授權
 關係,取代「爬蟲霸占電腦手動下載 + 工讀生逐字謄寫進 Excel」的舊流程。
@@ -16,7 +53,7 @@
 
 - **不需要**一直開著 Claude 或任何 AI 對話視窗。這裡的「LLM」是指程式
   碼裡呼叫 Google Gemini API(`src/extract/llm_extract.py`),用的是
-  自己申請的 API 金鑰,跟任何聊天介面沒有關係 —— 概念上就跟呼叫
+  實驗室自己申請的 API 金鑰,跟任何聊天介面沒有關係 —— 概念上就跟呼叫
   Google 翻譯 API 或任何雲端服務一樣,是程式的一個依賴套件,不是要有人
   在旁邊跟 AI 對話。
 - 需要人工的地方只剩最後一步「複核」,而且介面會標出 AI 沒把握的欄位,
@@ -24,17 +61,44 @@
 
 ## 第一次安裝
 
+Mac / Linux(終端機):
+
 ```bash
 python -m venv .venv
-source .venv/bin/activate        # Windows 用 .venv\Scripts\activate
+source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
+Windows(命令提示字元 cmd.exe,`(.venv)` 開頭的視窗就是這種):
+
+```bat
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+```
+
+Windows 的 PowerShell 視窗(藍色背景、開頭是 `PS C:\...>`)指令又不一樣:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+**怎麼分辨自己開的是哪一種視窗**:cmd.exe 提示字元長得像
+`D:\某資料夾>`(黑底白字,常見的「命令提示字元」);PowerShell 提示字元
+長得像 `PS C:\某資料夾>`(通常是藍底或深色底,前面多一個 `PS `)。後面
+「怎麼操作」章節的指令(`python -m src...`、`streamlit run ...`)三種
+環境都可以直接用,只有像 `cp`/`copy`/`Copy-Item` 這種作業系統內建的檔案
+操作指令會不一樣。
+
 打開 `.env`,填入:
-1. `GEMINI_API_KEY` —— 去 https://aistudio.google.com/apikey 用自己的
-   Google 帳號申請,有免費額度。**這組金鑰是自己的資產**,
-   交接時要注意,不要留在只有一個人知道的地方。
+1. `GEMINI_API_KEY` —— 去 https://aistudio.google.com/apikey 用實驗室的
+   Google 帳號申請,有免費額度。**這組金鑰是實驗室的資產,不是個人的**,
+   離職交接時要一併交接,不要留在只有一個人知道的地方。
 2. `DATABASE_URL` —— 如果還不確定實驗室資料庫是哪一種,先留空,系統
    會自動用本機的 SQLite 檔案(`data/contracts.db`),不影響前面抓取跟
    抽取的流程,之後確定資料庫種類再回來填這一行就好(見下方「入庫」)。
@@ -65,11 +129,18 @@ streamlit run src/review_app/app.py
 
 ## 各資料夾放什麼
 
-- `config/companies.csv`:目前追蹤的公司名單(股票代碼、全名、簡稱)。
-  這份是從你們既有的「半導體上市 2025.xlsx」反推出來的 82 家公司起始
-  清單,增減公司直接編輯這個 CSV 就好。**還沒接上 TEJ 產業分類**——目前
-  版本需要你們手動維護這份清單,TEJ 匯出檔的匯入腳本待補(見下方
-  「已知限制」)。
+- `config/companies.csv`:目前追蹤的公司名單。**只有 `stock_code`
+  一欄是必要的**,增減公司直接編輯這個 CSV、每行一個股票代碼就好,不用
+  額外填公司全名或簡稱。原因:抽取流程(`run_pipeline.py`)如果沒拿到
+  公司名字,會自動讀該份 PDF**封面頁**去猜(`guess_company_name()`),
+  這其實比手動維護一份固定名單更準——公司改名、併購、控股化的情況,
+  每一年年報封面印的名字本來就會跟著變,直接讀當年封面反而比較貼近事實。
+  如果某份 PDF 封面是純圖形設計、抓不到文字,猜測會失敗,這時候可以在
+  `companies.csv` 額外加 `full_name`(和選填的 `short_name`)欄位手動
+  指定那幾家公司,兩種方式可以混用,`load_companies()` 都吃得下。
+  現在這份是從你們既有的「半導體上市 2025.xlsx」反推出來的 82 家公司
+  起始清單。**還沒接上 TEJ 產業分類**——目前版本需要你們手動維護這份
+  清單,TEJ 匯出檔的匯入腳本待補(見下方「已知限制」)。
 - `config/schema.py`:**全系統唯一的欄位定義來源**。抓取、抽取、複核、
   入庫四個模組都從這裡讀欄位名稱與控制詞彙,要調整欄位只改這一個地方。
 - `data/raw_pdfs/`:下載下來的年報 PDF,檔名格式固定是

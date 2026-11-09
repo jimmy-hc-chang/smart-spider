@@ -39,7 +39,8 @@ if not csv_files:
     st.stop()
 
 chosen = st.selectbox("選擇要複核的檔案", csv_files, format_func=lambda p: p.name)
-df = pd.read_csv(chosen, dtype=str).fillna("")
+# utf-8-sig:CSV 存檔時統一加 UTF-8 BOM 方便用 Excel 直接開,讀取要對應用 utf-8-sig
+df = pd.read_csv(chosen, dtype=str, encoding="utf-8-sig").fillna("")
 
 low_conf_count = (df["AI信心"] == "low").sum()
 medium_conf_count = (df["AI信心"] == "medium").sum()

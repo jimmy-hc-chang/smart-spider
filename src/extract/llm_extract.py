@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -31,8 +32,20 @@ from google.genai import types
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.schema import ExtractionResult, CONTRACT_TYPE_VALUES, PARTY_B_TYPE_VALUES, DIRECTION_CODE_MEANING
+from src.settings import get_secret
 
 load_dotenv()
+
+DEFAULT_MODEL = "gemini-flash-latest"  # Google 提供的別名,永遠指向最新的 Flash 模型,不用每年改名
+
+
+class QuotaExceeded(Exception):
+    """Gemini 免費額度用完(429 / RESOURCE_EXHAUSTED)。一鍵更新遇到會停下來,隔天自動繼續。"""
+
+
+def _is_quota_error(e: Exception) -> bool:
+    s = str(e)
+    return "429" in s or "RESOURCE_EXHAUSTED" in s or "quota" in s.lower()
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FEW_SHOT_PATH = REPO_ROOT / "data" / "golden_set" / "few_shot_examples.json"
@@ -74,31 +87,50 @@ def _load_few_shot_block() -> str:
     return block
 
 
-def extract(section_text: str, *, model: str | None = None) -> ExtractionResult:
-    """把定位到的「重要契約」段落文字丟給 Gemini,回傳結構化結果。"""
-    api_key = os.environ.get("GEMINI_API_KEY")
+def _call(client, model_name, prompt, use_schema: bool):
+    cfg = types.GenerateContentConfig(response_mime_type="application/json")
+    if use_schema:
+        cfg.response_schema = ExtractionResult
+    return client.models.generate_content(model=model_name, contents=prompt, config=cfg)
+
+
+def extract(section_text: str, *, model: str | None = None, max_retries: int = 3) -> ExtractionResult:
+    """把定位到的「重要契約」段落文字丟給 Gemini,回傳結構化結果。
+
+    - 額度不足(每分鐘次數太多)會自動等一下再試;重試還是不行就丟出 QuotaExceeded。
+    - 如果 Gemini 不接受我們的 schema 格式(不同模型版本偶爾會有相容性問題),
+      自動改成「只要求回 JSON、schema 寫在 prompt 裡」再試一次,再用 pydantic 驗證。
+    """
+    api_key = get_secret("GEMINI_API_KEY")
     if not api_key:
-        raise RuntimeError("找不到 GEMINI_API_KEY,請先複製 .env.example 為 .env 並填入金鑰")
+        raise RuntimeError("找不到 GEMINI_API_KEY,請在 .env / GitHub Secrets / Streamlit Secrets 設定")
 
-    model_name = model or os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+    model_name = model or get_secret("GEMINI_MODEL") or DEFAULT_MODEL
     client = genai.Client(api_key=api_key)
-
     prompt = SYSTEM_PROMPT + _load_few_shot_block() + f"\n\n請處理以下原文:\n\n{section_text}"
 
-    response = client.models.generate_content(
-        model=model_name,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ExtractionResult,
-        ),
-    )
-
-    # google-genai 在 response_schema 是 pydantic model 時,response.parsed 就是
-    # 一個現成的 ExtractionResult 物件;保留手動解析當作備援,避免 SDK 版本差異。
-    if getattr(response, "parsed", None) is not None:
-        return response.parsed
-    return ExtractionResult.model_validate_json(response.text)
+    use_schema = True
+    wait = 30
+    for attempt in range(max_retries + 1):
+        try:
+            response = _call(client, model_name, prompt, use_schema)
+            if use_schema and getattr(response, "parsed", None) is not None:
+                return response.parsed
+            return ExtractionResult.model_validate_json(response.text)
+        except Exception as e:  # noqa: BLE001
+            if _is_quota_error(e):
+                if "PerDay" in str(e) or attempt == max_retries:
+                    raise QuotaExceeded(str(e)) from e
+                time.sleep(wait)
+                wait *= 2
+                continue
+            if use_schema and ("schema" in str(e).lower() or "INVALID_ARGUMENT" in str(e)):
+                use_schema = False
+                prompt += ("\n\n請只輸出 JSON,格式必須符合這個 JSON Schema:\n"
+                           + json.dumps(ExtractionResult.model_json_schema(), ensure_ascii=False))
+                continue
+            raise
+    raise RuntimeError("Gemini 重試次數用完")
 
 
 if __name__ == "__main__":
